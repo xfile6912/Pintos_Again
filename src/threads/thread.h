@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -89,7 +90,6 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -100,6 +100,16 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    struct thread* parent; //부모 프로세스의 디스크립터
+    struct list children; //자식 프로세스들의 list
+    struct list_elem childelem; //list element for children list.
+    bool is_loaded; //프로세스의 프로그램 메모리 적재 유무
+    bool is_terminated; //프로세스의 종료 유무 확인
+    struct semaphore load;  //load 세마포어
+    struct semaphore exit;  //exit 세마포어
+    int exit_status;  //exit 호출시 종료 status
+
   };
 
 /* If false (default), use round-robin scheduler.
@@ -139,3 +149,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 #endif /* threads/thread.h */
+//자식프로세스 검색 함수
+struct thread *get_child_process(int pid);
+//자식프로세스 제거함수
+void remove_child_process(struct thread *cp);

@@ -206,6 +206,15 @@ thread_create (const char *name, int priority,
 
   intr_set_level (old_level);
 
+  struct thread *current_thread=thread_current();
+  t->parent=current_thread;//부모 프로세스 저장
+  t->is_loaded=false;//프로그램이 로드되지 않음
+
+  t->is_terminated=false;//프로세스가 종료되지 않음
+  sema_init(&(t->exit), 0);//exit 세마포어 0으로 초기화
+  sema_init(&(t->load), 0);//load 세마포어 0으로 초기화
+  list_push_back(&(current_thread->children), &(t->childelem));//부모프로세스의 자식 리스트에 추가
+
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -470,6 +479,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+
+  //새로 만든 thread t의 자식 리스트 초기화
+  list_init(&(t->children));
+
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -585,3 +598,27 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+struct thread *get_child_process(int pid)
+{
+  struct list *children=&(thread_current()->children);
+  struct list_elem *elem;
+  //자식 리스트에서 프로세스 디스크립터 검색
+  for(elem=list_begin(children); elem!=list_end(children); elem=list_next(elem))
+  {
+    struct thread* child=list_entry(elem, struct thread, childelem);
+    //해당 pid가 존재하면 해당 프로세스 반환
+    if(child->tid==pid)
+      return child;
+  }
+  //리스트에 존재하지 않으면 null 리턴
+  return NULL;
+}
+void remove_child_process(struct thread *cp)
+{
+  if(cp!=NULL)
+  {
+    list_remove(&(cp->childelem));
+    palloc_free_page(cp);
+  }
+}
