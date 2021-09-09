@@ -6,15 +6,91 @@
 
 static void syscall_handler (struct intr_frame *);
 
-void
+	void
 syscall_init (void) 
 {
-  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+	intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static void
+void check_address(void *addr)
+{
+	uint32_t address=(uint32_t)addr;
+	if(0x8048000>addr || 0xc0000000<=addr)
+		exit(-1);
+	//포인터가 가리키는 주소가 유저영역의 주소인지 확인
+	//잘못된 접근인 경우 프로세스 종료
+}
+
+void get_argument(void *esp, int *arg, int count)
+{
+	//유저 스택에 저장된 인저값들을 커널로 저장
+	//인자가 저장된 위치가 유저영역인지 확인
+	int i=0;
+	esp=esp+4;//첫 argument가 저장된 위
+	while(count--)
+	{
+		check_address(esp);
+		arg[i++]=*(int*)esp;
+		esp+=4;
+	}
+}
+//terminate the pintos
+void halt(void)
+{
+	shutdown_power_off();
+}
+//terminate current process
+void exit(int status)
+{
+	struct thread *current_thread=thread_current();
+	printf("%s: exit(%d)\n", current_thread->name, status);
+	thread_exit();
+}
+//create file
+bool create(const char *file, unsigned initial_size)
+{
+	return filesys_create(file, initial_size);
+	//return true if success, else false
+}
+//remove file
+bool remove(const char *file)
+{
+	return filesys_remove(file);
+	//return true if success, else false
+}
+
+	static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
-  thread_exit ();
+	int arg[5];
+	void *esp;
+	uint32_t syscall_number;
+
+	//get stack pointer
+	esp=f->esp;
+	//get syscall number
+	syscall_number=*(uint32_t*)esp;
+
+
+	switch(syscall_number)
+	{
+		case SYS_HALT:
+			halt();
+			break;
+		case SYS_EXIT:
+			get_argument(esp, arg, 1);
+			exit(arg[0]);
+			break;
+		case SYS_CREATE:
+			get_argument(esp, arg, 2);
+			check_address(arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
+			f->eax = create(arg[0], arg[1]);
+			break;
+		case SYS_REMOVE:
+			get_argument(esp, arg, 1);
+			check_address(arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
+			f->eax=remove(arg[0]);
+			break;
+	}
+	thread_exit ();
 }
