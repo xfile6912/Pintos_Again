@@ -59,6 +59,20 @@ bool remove(const char *file)
 	//return true if success, else false
 }
 
+tid_t exec(const *cmd_line)
+{
+	//process_execute함수를 호출하여 자식 프로세스 생성
+	tid_t tid=process_execute(cmd_line);
+	//생성된 자식프로세스의 프로세스 디스크립터를 검색
+	struct thread * child = get_child_process(tid);
+	//자식프로세스의 프로그램이 적재될 때까지 대기
+	sema_down(&(child->load));
+	//프로그램 적재 실패시 -1 리턴
+	if(!(child->is_loaded))
+		return -1;
+	//프로그램 적재 성공시 자식 프로세스의 tid리턴
+	return tid;
+}
 	static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
@@ -79,17 +93,22 @@ syscall_handler (struct intr_frame *f UNUSED)
 			break;
 		case SYS_EXIT:
 			get_argument(esp, arg, 1);
-			exit(arg[0]);
+			exit((int)arg[0]);
 			break;
 		case SYS_CREATE:
 			get_argument(esp, arg, 2);
-			check_address(arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
-			f->eax = create(arg[0], arg[1]);
+			check_address((void *)arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
+			f->eax = create((const char*)arg[0], (unsigned)arg[1]);
 			break;
 		case SYS_REMOVE:
 			get_argument(esp, arg, 1);
-			check_address(arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
-			f->eax=remove(arg[0]);
+			check_address((void *)arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
+			f->eax=remove((const char *)arg[0]);
+			break;
+		case SYS_EXEC:
+			get_argument(esp, arg, 1);
+			check_address((void *)arg[0]);
+			f->eax=exec((const char *)arg[0]);
 			break;
 	}
 	thread_exit ();
