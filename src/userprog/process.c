@@ -151,7 +151,7 @@ start_process (void *file_name_)
 	}
 	current_thread->is_loaded=true;
 	argument_stack(argv, argc, &if_.esp);//userstack에 인자 저장
-	hex_dump(if_.esp, if_.esp, PHYS_BASE-if_.esp, true);
+	//hex_dump(if_.esp, if_.esp, PHYS_BASE-if_.esp, true);
 
 	free(command);
 	/* Start the user process by simulating a return from an
@@ -176,8 +176,19 @@ start_process (void *file_name_)
 	int
 process_wait (tid_t child_tid UNUSED)
 {
-	while(1);
-	return -1;
+		//자식 프로세스의 프로세스 디스크립터 검색
+	struct thread* child=get_child_process(child_tid);
+	int exit_status;
+	//예외처리 발생시 -1 리턴
+	if(child==NULL)
+		return -1;
+	//자식프로세스가 종료될 때까지 부모 프로세스 대기(세마포어 이용)
+	sema_down(&(child->exit));
+	//자식프로세스 디스크립터 삭제
+	exit_status=child->exit_status;
+	remove_child_process(child);
+	//자식프로세스의 exit status 리턴
+	return exit_status;
 }
 
 /* Free the current process's resources. */

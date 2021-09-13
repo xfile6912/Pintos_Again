@@ -308,6 +308,10 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+  //프로세스 디스크립터에 프로세스 종료를 알림
+  thread_current()->is_terminated=true;
+  //부모프로세스의 대기 상태 이탈(세마포어 이용)
+  sema_up(&thread_current()->exit);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -554,7 +558,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+      //palloc_free_page (prev);
     }
 }
 
