@@ -152,7 +152,7 @@ page_fault (struct intr_frame *f)
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
 
-  if(not_present || !user||!is_user_vaddr(fault_addr))
+  //pagefault발생시 exit(-1)호출
     exit(-1);
 
   printf ("Page fault at %p: %s error %s page in %s context.\n",

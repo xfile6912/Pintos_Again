@@ -110,6 +110,8 @@ struct thread
     struct semaphore exit;  //exit 세마포어
     int exit_status;  //exit 호출시 종료 status
 
+    struct file* fd_table[130];//file descriptor table;
+    int new_fd;//현재 테이블에 존재하는 fd의 최댓값+1
   };
 
 /* If false (default), use round-robin scheduler.

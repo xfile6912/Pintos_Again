@@ -170,6 +170,7 @@ thread_create (const char *name, int priority,
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
+  int i;
   tid_t tid;
   enum intr_level old_level;
 
@@ -214,6 +215,12 @@ thread_create (const char *name, int priority,
   sema_init(&(t->exit), 0);//exit 세마포어 0으로 초기화
   sema_init(&(t->load), 0);//load 세마포어 0으로 초기화
   list_push_back(&(current_thread->children), &(t->childelem));//부모프로세스의 자식 리스트에 추가
+
+  //fd값 초기화
+  t->new_fd=2;
+  //File Descriptor 테이블 메모리 할당
+  for(i=0; i<130; i++)
+    t->fd_table[i]=NULL;
 
   /* Add to run queue. */
   thread_unblock (t);

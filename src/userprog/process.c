@@ -198,6 +198,17 @@ process_exit (void)
 	struct thread *cur = thread_current ();
 	uint32_t *pd;
 
+	//프로세스에 열린 모든 파일을 닫음
+	//파일 디스크립터 테이블의 최대값을 이용해 파일 디스크립터의 최소값인 2가 될때까지 파일을 닫음
+	//파일 디스크립터 테이블 메모리 해제(정적 배열로 선언해주었으므로 따로 메모리 해제 필요 없음)
+	int fd;
+	for(fd=cur->new_fd-1; fd>=2 ; fd--)
+	{
+		if(cur->fd_table[fd]!=NULL)
+			process_close_file(fd);
+	}
+	cur->new_fd=2;
+
 	/* Destroy the current process's page directory and switch back
 	   to the kernel-only page directory. */
 	pd = cur->pagedir;
@@ -568,4 +579,31 @@ install_page (void *upage, void *kpage, bool writable)
 	   address, then map our page there. */
 	return (pagedir_get_page (t->pagedir, upage) == NULL
 			&& pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+//파일 객체를 File Descriptor 테이블에 추가
+int process_add_file(struct file *f)
+{
+		struct thread *t= thread_current();
+		//파일 객체를 파일 디스크립터 테이블에 추가
+
+		t->fd_table[t->new_fd]=f;
+		//파일 디스크립터 반환 및 파일 디스크립터의 최댓값 1 증가
+		return t->new_fd++;
+}
+//파일 디스크립터 값에 해당하는 파일 객체 반환
+struct file *process_get_file(int fd)
+{
+	struct thread *t=thread_current();
+	//파일 디스크립터에 해당하는 파일 객체를 리턴
+	//없을 시 NULL 리턴(처음 thread 초기화 및 파일 삭제시 NULL로 설정하도록 할 것이므로 그냥 반환하면 됨)
+	return t->fd_table[fd];
+}
+//파일 디스크립터에 해당하는 파일을 닫음
+void process_close_file(int fd)
+{
+	struct thread* t=thread_current();
+	//file descriptor에 해당하는 파일을 닫음
+	file_close(t->fd_table[fd]);
+	//파일 디스크립터 테이블의 해당 entry를 초기화
+	t->fd_table[fd]=NULL;
 }
