@@ -26,8 +26,8 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
-	tid_t
-process_execute (const char *file_name) 
+tid_t
+process_execute (const char *file_name)
 {
 	char *fn_copy;
 	tid_t tid;
@@ -105,7 +105,7 @@ void argument_stack(char **argv, int argc, void **esp)
 
 /* A thread function that loads a user process and starts it
    running. */
-	static void
+static void
 start_process (void *file_name_)
 {
 	char *file_name = file_name_;
@@ -141,16 +141,18 @@ start_process (void *file_name_)
 
 	success = load (real_file_name, &if_.eip, &if_.esp);
 
-	//메모리 적재 완료시 부모 프로세스 다시 진행
-	sema_up(&(current_thread->load));
-
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success) {
 		current_thread->is_loaded=false;
+		sema_up(&(current_thread->load));
 		thread_exit();
 	}
 	current_thread->is_loaded=true;
+
+	//메모리 적재 완료시 부모 프로세스 다시 진행
+	sema_up(&(current_thread->load));
+
 	argument_stack(argv, argc, &if_.esp);//userstack에 인자 저장
 	//hex_dump(if_.esp, if_.esp, PHYS_BASE-if_.esp, true);
 
@@ -174,10 +176,10 @@ start_process (void *file_name_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
-	int
+int
 process_wait (tid_t child_tid UNUSED)
 {
-		//자식 프로세스의 프로세스 디스크립터 검색
+	//자식 프로세스의 프로세스 디스크립터 검색
 	struct thread* child=get_child_process(child_tid);
 	int exit_status;
 	//예외처리 발생시 -1 리턴
@@ -193,14 +195,14 @@ process_wait (tid_t child_tid UNUSED)
 }
 
 /* Free the current process's resources. */
-	void
+void
 process_exit (void)
 {
 	struct thread *cur = thread_current ();
 	uint32_t *pd;
 
 	//실행중인 파일 close
-	//file_close(cur->run_file);
+	file_close(cur->run_file);
 
 	//프로세스에 열린 모든 파일을 닫음
 	//파일 디스크립터 테이블의 최대값을 이용해 파일 디스크립터의 최소값인 2가 될때까지 파일을 닫음
@@ -235,7 +237,7 @@ process_exit (void)
 /* Sets up the CPU for running user code in the current
    thread.
    This function is called on every context switch. */
-	void
+void
 process_activate (void)
 {
 	struct thread *t = thread_current ();
@@ -247,7 +249,7 @@ process_activate (void)
 	   interrupts. */
 	tss_update ();
 }
-
+
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -314,14 +316,14 @@ struct Elf32_Phdr
 static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
-		uint32_t read_bytes, uint32_t zero_bytes,
-		bool writable);
+						  uint32_t read_bytes, uint32_t zero_bytes,
+						  bool writable);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
-	bool
+bool
 load (const char *file_name, void (**eip) (void), void **esp)
 {
 	struct thread *t = thread_current ();
@@ -349,21 +351,21 @@ load (const char *file_name, void (**eip) (void), void **esp)
 		goto done;
 	}
 	//thread 구조체의 run file을 현재 실행할 파일로 초기화
-	t->run_file=file;
+	t->run_file=filesys_open(file_name);
 	//file_deny_write을 이용하여 파일에 대한 write을 거부
-	file_deny_write(file);
+	file_deny_write(t->run_file);
 	//락 해제
 	lock_release(&filesys_lock);
 
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
-			|| memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
-			|| ehdr.e_type != 2
-			|| ehdr.e_machine != 3
-			|| ehdr.e_version != 1
-			|| ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
-			|| ehdr.e_phnum > 1024)
+		|| memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
+		|| ehdr.e_type != 2
+		|| ehdr.e_machine != 3
+		|| ehdr.e_version != 1
+		|| ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
+		|| ehdr.e_phnum > 1024)
 	{
 		printf ("load: %s: error loading executable\n", file_name);
 		goto done;
@@ -410,7 +412,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 						   Read initial part from disk and zero the rest. */
 						read_bytes = page_offset + phdr.p_filesz;
 						zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
-								- read_bytes);
+									  - read_bytes);
 					}
 					else
 					{
@@ -420,7 +422,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 						zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
 					}
 					if (!load_segment (file, file_page, (void *) mem_page,
-								read_bytes, zero_bytes, writable))
+									   read_bytes, zero_bytes, writable))
 						goto done;
 				}
 				else
@@ -442,19 +444,19 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 	success = true;
 
-done:
+	done:
 	/* We arrive here whether the load is successful or not. */
 	file_close (file);
 	return success;
 }
-
+
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);
 
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
-	static bool
+static bool
 validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
 {
 	/* p_offset and p_vaddr must have the same page offset. */
@@ -511,9 +513,9 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
 
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
-	static bool
+static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
-		uint32_t read_bytes, uint32_t zero_bytes, bool writable)
+			  uint32_t read_bytes, uint32_t zero_bytes, bool writable)
 {
 	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT (pg_ofs (upage) == 0);
@@ -558,7 +560,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
-	static bool
+static bool
 setup_stack (void **esp)
 {
 	uint8_t *kpage;
@@ -585,7 +587,7 @@ setup_stack (void **esp)
    with palloc_get_page().
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
-	static bool
+static bool
 install_page (void *upage, void *kpage, bool writable)
 {
 	struct thread *t = thread_current ();
@@ -598,12 +600,12 @@ install_page (void *upage, void *kpage, bool writable)
 //파일 객체를 File Descriptor 테이블에 추가
 int process_add_file(struct file *f)
 {
-		struct thread *t= thread_current();
-		//파일 객체를 파일 디스크립터 테이블에 추가
+	struct thread *t= thread_current();
+	//파일 객체를 파일 디스크립터 테이블에 추가
 
-		t->fd_table[t->new_fd]=f;
-		//파일 디스크립터 반환 및 파일 디스크립터의 최댓값 1 증가
-		return t->new_fd++;
+	t->fd_table[t->new_fd]=f;
+	//파일 디스크립터 반환 및 파일 디스크립터의 최댓값 1 증가
+	return t->new_fd++;
 }
 //파일 디스크립터 값에 해당하는 파일 객체 반환
 struct file *process_get_file(int fd)
