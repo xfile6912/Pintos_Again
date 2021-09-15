@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -198,6 +199,9 @@ process_exit (void)
 	struct thread *cur = thread_current ();
 	uint32_t *pd;
 
+	//실행중인 파일 close
+	//file_close(cur->run_file);
+
 	//프로세스에 열린 모든 파일을 닫음
 	//파일 디스크립터 테이블의 최대값을 이용해 파일 디스크립터의 최소값인 2가 될때까지 파일을 닫음
 	//파일 디스크립터 테이블 메모리 해제(정적 배열로 선언해주었으므로 따로 메모리 해제 필요 없음)
@@ -208,6 +212,7 @@ process_exit (void)
 			process_close_file(fd);
 	}
 	cur->new_fd=2;
+
 
 	/* Destroy the current process's page directory and switch back
 	   to the kernel-only page directory. */
@@ -332,14 +337,24 @@ load (const char *file_name, void (**eip) (void), void **esp)
 		goto done;
 	process_activate ();
 
+	//락 획득
+	lock_acquire(&filesys_lock);
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
 	if (file == NULL)
 	{
+		lock_release(&filesys_lock);
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	//thread 구조체의 run file을 현재 실행할 파일로 초기화
+	t->run_file=file;
+	//file_deny_write을 이용하여 파일에 대한 write을 거부
+	file_deny_write(file);
+	//락 해제
+	lock_release(&filesys_lock);
+
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr

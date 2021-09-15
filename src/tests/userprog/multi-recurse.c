@@ -20,7 +20,8 @@ main (int argc UNUSED, char *argv[])
       char child_cmd[128];
       pid_t child_pid;
       int code;
-      
+      if(n==9)
+        printf("this is shit\n");
       snprintf (child_cmd, sizeof child_cmd, "multi-recurse %d", n - 1);
       CHECK ((child_pid = exec (child_cmd)) != -1, "exec(\"%s\")", child_cmd);
 

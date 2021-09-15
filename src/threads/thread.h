@@ -98,6 +98,9 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
+    //현재 실행중인 파일 추가
+    struct file* run_file;
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
 
