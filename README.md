@@ -4,7 +4,9 @@
   - Kernel Threads, Loading and Runing user programs, filesystem 등을 지원
   - Bochs x86 시뮬레이터 사용
   <img width="800" alt="image" src="https://user-images.githubusercontent.com/57051773/133548974-a18b7632-2c37-423d-ac40-240362e5d437.png">
-
+- 참고자료
+  - 한양대학교 Pintos_all PPT
+  - 서강대학교 Pintos Project 과제 PPT
 ---------
 
 ## Pintos1(User Program)
