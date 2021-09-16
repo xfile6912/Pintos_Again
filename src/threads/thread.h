@@ -115,6 +115,8 @@ struct thread
 
     struct file* fd_table[130];//file descriptor table;
     int new_fd;//현재 테이블에 존재하는 fd의 최댓값+1
+
+    int64_t wakeup_tick;//깨어나야할 tick을 저장할 변수 추가
   };
 
 /* If false (default), use round-robin scheduler.
@@ -158,3 +160,12 @@ int thread_get_load_avg (void);
 struct thread *get_child_process(int pid);
 //자식프로세스 제거함수
 void remove_child_process(struct thread *cp);
+
+//실행중인 thread를 sleep으로 만듦
+void thread_sleep(int64_t ticks);
+//sleep list에서 깨워야할 thread를 깨움
+void thread_awake(int64_t ticks);
+//최소틱을 가진 thread 저장
+void update_next_tick_to_awake(int64_t ticks);
+//thread.c의 next_tick_to_awake를 반환
+int64_t get_next_tick_to_awake(void);

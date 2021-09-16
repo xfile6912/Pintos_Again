@@ -28,6 +28,13 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+
+//thread blocked 상태의 스레드를 관리하기 위한 리스트 자료구조
+static struct list sleep_list;
+
+//sleep_list에서 대기중인 thread들의 wakeup_tick값 중 최소 값을 저장
+int64_t next_tick_to_awake=INT64_MAX;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -93,6 +100,8 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
 
+  //sleep list를 초기화
+  list_init(&sleep_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -632,4 +641,68 @@ void remove_child_process(struct thread *cp)
     list_remove(&(cp->childelem));
     palloc_free_page(cp);
   }
+}
+
+//실행중인 thread를 sleep으로 만듦
+void thread_sleep(int64_t ticks)
+{
+
+  struct thread* t= thread_current();
+  //해당 과정중에는 interrupt를 받아들이지 않는다.
+  enum intr_level old_level;
+
+  old_level = intr_disable ();
+  //현재 thread가 idle thread가 아닐 경우
+  if (t != idle_thread)
+  {
+    //thread의 상태를 blocked로 바꾸고 깨어나야할 ticks를 저장
+    t->status=THREAD_BLOCKED;
+    t->wakeup_tick=ticks;
+    //sleep_list에 삽입하고
+    list_push_back(&sleep_list, &(t->elem));
+    //awake함수가 실행되어야할 tick값을 update
+    update_next_tick_to_awake(t->wakeup_tick);
+    //현재 thread를 sleep_list에 삽입한 후에 스케줄 한다.
+    schedule ();
+  }
+  intr_set_level (old_level);
+}
+//sleep list에서 깨워야할 thread를 깨움
+void thread_awake(int64_t ticks)
+{
+  struct list_elem *ptr;
+  next_tick_to_awake=INT64_MAX;
+
+  //sleep_list에서 모든 entry를 순회
+  for(ptr=list_begin(&sleep_list); ptr!=list_end(&sleep_list);)
+  {
+    //중간에 ptr이 list에서 remove 될수 있으므로 미리 next_ptr을 백업해 놓아야 한다.
+    struct list_elem *next_ptr=list_next(ptr);
+
+    struct thread* t=list_entry(ptr, struct thread, elem);
+
+    //현재 tick이 깨워야할 tick보다 크거나 같다면 sleep queue에서 제거하고 unblock
+    if(t->wakeup_tick<=ticks) {
+      list_remove(&(t->elem));
+      thread_unblock(t);
+    }
+    else//작다면 update_next_tick_to_awake()를 호출
+      update_next_tick_to_awake(ticks);
+
+    //백업해놓은 next_ptr을 ptr에 대입
+    ptr=next_ptr;
+  }
+}
+//최소틱을 가진 thread 저장
+void update_next_tick_to_awake(int64_t ticks)
+{
+  if(next_tick_to_awake>ticks)
+    next_tick_to_awake=ticks;
+}
+
+//thread.c의 next_tick_to_awake를 반환
+int64_t get_next_tick_to_awake(void)
+{
+  //next_tick_to_awake를 반환
+ return next_tick_to_awake;
 }
