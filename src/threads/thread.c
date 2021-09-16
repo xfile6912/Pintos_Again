@@ -234,6 +234,11 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  //생성된 thread의 우선순위가 현재 실행중인 thread의 우선순위보다 높다면 cpu를 양보한다.
+  struct thread *cur=thread_current();
+  if(t->priority > cur->priority)
+    thread_yield();
+
   return tid;
 }
 
@@ -270,7 +275,9 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  //스레드가 unblock될 때 우선순위 순으로 정렬되어 ready_list에 삽입되도록 수정
+  //list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -344,8 +351,12 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+  if (cur != idle_thread) {
+    //현재 thread가 cpu를 양보하여 ready_list에 삽입될 때 우선순이 순서로 정렬되어
+    //삽입되도록 수정
+    //list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered(&ready_list, &cur->elem, cmp_priority, NULL);
+  }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -373,6 +384,8 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  //thread의 우선순위가 변경되었을 때 우선순위에 따라 선점이 발생하도록 함
+  test_max_priority();
 }
 
 /* Returns the current thread's priority. */
@@ -705,4 +718,27 @@ int64_t get_next_tick_to_awake(void)
 {
   //next_tick_to_awake를 반환
  return next_tick_to_awake;
+}
+
+
+//현재 수행중인 thread와 가장 높은 우선순위의 thread의 우선순위를 비교하여 스케줄링
+void test_max_priority(void)
+{
+  struct thread* cur=thread_current();
+  if(!list_empty(&ready_list))//ready list가 비어있지 않는지 확인
+  {
+    struct thread* begin=list_entry(list_begin(&ready_list), struct thread, elem);
+    //ready_list에서 우선순위가 가장 높은 thread와
+    //현재 thread의 우선순위를 비교하여 스케줄링
+    if(begin->priority > cur->priority)//현재 수행중인 것의 우선순위가 낮으면 다음 thread에 양보
+      thread_yield();
+  }
+}
+//인자로 주어진 스레드들의 우선순위를 비교
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+  //list_insert_ordered()함수에서 사용하기 위해 정렬 방법을 결정하
+  struct thread *thread_a=list_entry(a, struct thread, elem);
+  struct thread *thread_b=list_entry(b, struct thread, elem);
+  return thread_a->priority > thread_b->priority;
 }

@@ -169,3 +169,8 @@ void thread_awake(int64_t ticks);
 void update_next_tick_to_awake(int64_t ticks);
 //thread.c의 next_tick_to_awake를 반환
 int64_t get_next_tick_to_awake(void);
+
+//현재 수행중인 thread와 가장 높은 우선순위의 thread의 우선순위를 비교하여 스케줄링
+void test_max_priority(void);
+//인자로 주어진 스레드들의 우선순위를 비교
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
