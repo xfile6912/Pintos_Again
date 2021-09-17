@@ -383,7 +383,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  thread_current ()->init_priority = new_priority;
+
+  //refresh_priority()함수를 사용하여 우선순위의 변경으로 인한 donation 관련정보 갱신
+  refresh_priority();
+
+
   //thread의 우선순위가 변경되었을 때 우선순위에 따라 선점이 발생하도록 함
   test_max_priority();
 }
@@ -516,6 +521,10 @@ init_thread (struct thread *t, const char *name, int priority)
   //새로 만든 thread t의 자식 리스트 초기화
   list_init(&(t->children));
 
+  //priority donation 관련 자료구조 초기화
+  t->init_priority=priority;
+  t->wait_on_lock=NULL;
+  list_init(&t->donations);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -741,4 +750,57 @@ bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *au
   struct thread *thread_a=list_entry(a, struct thread, elem);
   struct thread *thread_b=list_entry(b, struct thread, elem);
   return thread_a->priority > thread_b->priority;
+}
+//priority의 donation을 수행
+void donate_priority(void)
+{
+  //현재 thread가 기다리고 있는 lock과 연결된 모든 thread들을 순회
+  //현재 thread의 우선순위를 lock을 보유하고 있는 스레드에게 기부
+  int i;
+  struct thread * t=thread_current();
+  int current_priority=t->priority;
+  for(i=0; i<=8; i++)
+  {
+    if(t->wait_on_lock==NULL)//더이상 기다리는 lock이 없는 경우(nested가 끝난 경우)
+      break;
+    t=t->wait_on_lock->holder;//nested된 것을 타고 들어감
+    t->priority=current_priority;
+  }
+}
+//lock을 해지 했을 때 donation리스트에서 해당 엔트리를 삭제하기 위한 함수를 구현한다.
+void remove_with_lock(struct lock *lock)
+{
+  struct thread* cur=thread_current();
+  struct list_elem *elem;
+  struct list_elem *next_elem;
+
+  //현재 thread의 donation 리스트를 확인하여 해지할 lock을 보유하고 있는 엔트리를 삭제한다.
+  for(elem=list_begin(&cur->donations); elem!=list_end(&cur->donations);)
+  {
+    next_elem=list_next(elem);
+
+    struct thread* t=list_entry(elem, struct thread, donation_elem);
+    if(t->wait_on_lock==lock)
+      list_remove(elem);
+
+    elem=next_elem;
+  }
+
+}
+//thread의 우선순위가 변경되었을 때 donation을 고려하여 우선순위를 다시 결정하는 함수를 작성한다.
+void refresh_priority(void)
+{
+  struct thread* cur=thread_current();
+  struct list_elem *elem;
+  //현재 thread의 우선순위를 기부받기 전의 우선순위로 변경
+  cur->priority=cur->init_priority;
+
+  //가장 우선순위가 높은 donations 리스트의 스레드와 현재 thread의우선순위를 비교하여 높은 값을
+  //현재 thread의 우선순위로 설정
+  for(elem=list_begin(&cur->donations); elem!=list_end(&cur->donations); elem=list_next(elem))
+  {
+    struct thread *t=list_entry(elem, struct thread, donation_elem);
+    if(t->priority > cur->priority)
+      cur->priority = t->priority;
+  }
 }
