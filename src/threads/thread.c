@@ -721,7 +721,7 @@ int64_t get_next_tick_to_awake(void)
 }
 
 
-//현재 수행중인 thread와 가장 높은 우선순위의 thread의 우선순위를 비교하여 스케줄링
+//현재 수행중인 thread와 가장 높은 우선순위의 thread의 우선순위를 비교하여 스케줄링(preemption이 필요하면 preemption)
 void test_max_priority(void)
 {
   struct thread* cur=thread_current();
