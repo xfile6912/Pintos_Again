@@ -122,6 +122,10 @@ struct thread
     struct lock *wait_on_lock;//해당 thread가 대기하고 있는 lock 자료구조의 주소를 저장
     struct list donations;//multiple donation을 고려하기 위해 사용
     struct list_elem donation_elem;//multiple donation을 고려하기 위해 사용
+
+    int nice;//우선순위에
+    int recent_cpu;//최근에 얼마나 많은 CPU time을 사용했는지를 표현
+    //(2*load_avg)/(2*load_avg+1)*recent_cpu + nice;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -179,7 +183,12 @@ int64_t get_next_tick_to_awake(void);
 void test_max_priority(void);
 //인자로 주어진 스레드들의 우선순위를 비교
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-
 void donate_priority(void);
 void remove_with_lock(struct lock *lock);
 void refresh_priority(void);
+
+void mlfqs_priority(struct thread *t);
+void mlfqs_recent_cpu(struct thread *t);
+void mlfqs_load_avg(void);
+void mlfqs_increment(void);
+void mlfqs_recalc(void);
