@@ -1,4 +1,5 @@
 # Pintos_Again
+### 더 깊은 이해를 위해 다시 해보는 Pintos
 - Description
   - x86 아키텍처를 위한 교육용 운영체제
   - Kernel Threads, Loading and Runing user programs, filesystem 등을 지원
