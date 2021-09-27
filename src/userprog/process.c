@@ -18,6 +18,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "vm/page.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -132,6 +133,9 @@ start_process (void *file_name_)
 		argv[argc++]=strtok_r(NULL," ", &next);
 	}
 
+	///vm_init()함수를 이용하여 해시테이블을 초기화
+	vm_init(&(current_thread->vm));
+
 	/* Initialize interrupt frame and load executable. */
 	memset (&if_, 0, sizeof if_);
 	if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -215,6 +219,9 @@ process_exit (void)
 	}
 	cur->new_fd=2;
 
+
+	//vm_entry들을 제거하는 코드 추가
+	vm_destroy(&cur->vm);
 
 	/* Destroy the current process's page directory and switch back
 	   to the kernel-only page directory. */

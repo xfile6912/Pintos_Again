@@ -126,6 +126,8 @@ struct thread
     int nice;//우선순위에
     int recent_cpu;//최근에 얼마나 많은 CPU time을 사용했는지를 표현
     //(2*load_avg)/(2*load_avg+1)*recent_cpu + nice;
+
+    struct hash vm; //thread가 가진 가상 주소 공간을 관리하는 hash table
   };
 
 /* If false (default), use round-robin scheduler.
