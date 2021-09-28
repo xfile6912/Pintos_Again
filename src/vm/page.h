@@ -1,4 +1,6 @@
 #include <hash.h>
+#include "threads/thread.h"
+#include "threads/vaddr.h"
 
 #define VM_BIN 0    /*바이너리 파일로부터 데이터를 로드*/
 #define VM_FILE 1   /*매핑된 파일로부터 데이터를 로드*/
@@ -29,7 +31,7 @@ struct vm_entry{
 
 void vm_init(struct hash *vm);
 bool insert_vme(struct hash *vm, struct vm_entry *vme);
-bool delete_vme(sturct hash *vm, struct vm_entry *vme);
+bool delete_vme(struct hash *vm, struct vm_entry *vme);
 
 struct vm_entry *find_vme(void *vaddr);
 void vm_destroy(struct hash *vm);

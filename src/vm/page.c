@@ -42,7 +42,7 @@ bool insert_vme(struct hash *vm, struct vm_entry *vme)
 		return false;
 }
 //hash_delete()함수를 이용하여 vm_entry를 해시테이블에서 제거
-bool delete_vme(sturct hash *vm, struct vm_entry *vme)
+bool delete_vme(struct hash *vm, struct vm_entry *vme)
 {
 	struct hash_elem *elem =hash_delete(vm, &(vme->elem));
 
@@ -67,7 +67,7 @@ struct vm_entry *find_vme(void *vaddr)
 	search_entry.vaddr = pg_round_down(vaddr);
 
 	//hash_find()함수를 이용해서 hash_elem 구조체 얻음
-	struct hash_elem* e=hash_find(&(cur->vm), &search_entry.elem);
+	struct hash_elem* e=hash_find(&(cur->vm), &(search_entry.elem));
 
 	if(e!=NULL)//hash_entry()로 해당 hash_elem의 vm_entry 구조체 리턴
 		return hash_entry(e, struct vm_entry, elem);
