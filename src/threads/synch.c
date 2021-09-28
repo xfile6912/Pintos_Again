@@ -206,6 +206,7 @@ lock_acquire (struct lock *lock)
 
   //mlfqs 스케줄러 활성화시 priority donation 비활성
   //해당 lock의 holder가 존재한다면 아래작업을 수행한다.
+#ifndef USERPROG
   if(!thread_mlfqs) {
     if (lock->holder != NULL) {
       //현재 thread의 wait_on_lock 변수에 획득하기를 기다리는 lock의 주소를 저장
@@ -218,11 +219,13 @@ lock_acquire (struct lock *lock)
       donate_priority();
     }
   }
-
+#endif
   sema_down (&lock->semaphore);
+#ifndef USERPROG
   if(!thread_mlfqs) {
     thread_current()->wait_on_lock = NULL;
   }
+#endif
   //lock을 획득한 후 lock holder를 갱신한다.
   lock->holder = thread_current ();
 
@@ -262,6 +265,8 @@ lock_release (struct lock *lock)
 
 
     lock->holder = NULL;
+
+#ifndef USERPROG
 //mlfqs 스케줄러 활성화시 priority donation 관련 코드 비활성화
   if(!thread_mlfqs) {
     //remove_with_lock() 추가
@@ -269,7 +274,7 @@ lock_release (struct lock *lock)
     //refresh_priority() 추가
     refresh_priority();
   }
-
+#endif
   sema_up (&lock->semaphore);
 }
 
