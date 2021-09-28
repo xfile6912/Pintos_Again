@@ -80,3 +80,19 @@ void vm_destroy(struct hash *vm)
 {
 	hash_destroy (vm, vm_destroy_func);
 }
+
+bool load_file(void *kaddr, struct vm_entry *vme)
+{
+	//using file_read() + file_seek()
+	//오프셋을 vm_entry에 해당하는 오프셋으로 설정
+	file_seek(vme->file, vme->offset);
+	//file_read로 물리페이지에 read_bytes만큼 데이터를 씀
+	if(file_read (vme->file, kaddr, vme->read_bytes) != (int)(vme->read_bytes))
+	{
+		return false;
+	}
+	//zero_bytes만큼 남는 부분을 0으로 패딩
+	memset (kaddr + vme->read_bytes, 0, vme->zero_bytes);
+	//file_read 여부 반환
+	return true;
+}

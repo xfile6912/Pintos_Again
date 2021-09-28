@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/synch.h"
+#include "vm/page.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -16,26 +17,77 @@ syscall_init (void)
 	lock_init(&filesys_lock);
 }
 
-void check_address(void *addr)
+struct vm_entry * check_address(void *addr, void *esp)
 {
-	uint32_t address=(uint32_t)addr;
-	if(0x8048000>addr || 0xc0000000<=addr)
-		exit(-1);
 	//포인터가 가리키는 주소가 유저영역의 주소인지 확인
 	//잘못된 접근인 경우 프로세스 종료
+	if(0x8048000>addr || 0xc0000000<=addr) {
+		exit(-1);
+	}
+
+	//addr이 vm_entry에 존재하면 vm_entry를 반환하도록 코드 수정
+	//find_Vme()사용
+	return find_vme(addr);
+
 }
+
+//buffer의 유효성을 검사하는 함수
+void check_valid_buffer(void *buffer, unsigned size, void *esp, bool to_write)
+{
+	void *ptr=pg_round_down(buffer);
+	//인자로 받은 buffer로부터 buffer + size까지의 크기가 한 페이지의 크기를 넘길 수 도 있음
+	for(;ptr<buffer+size; ptr+=PGSIZE)
+	{
+		//check_address를 이용해서 주소의 유저영역 여부를 검사함과 동시에 vm_entry 구조체를 얻음
+		struct vm_entry * vme = check_address(ptr, esp);
+		//해당 주소에 대한 vm_entry의 존재 여부와 vm_entry의 writable 멤버가 true인지 검사
+		if(vme == NULL || !(vme->writable))
+		{
+			exit(-1);
+		}
+		//위 내용을 buffer부터 buffer+size까지의 주소에 포함되는 vm_entry들에 대해 적용
+
+	}
+
+
+}
+//system call에서 사용할 인자의 문자열의 주소값이 유효한 가상 주소인지 검사하는 함수
+void check_valid_string(const void *str, void *esp)
+{
+	//str에 대한 vm_entry의 존재 여부를 확인
+	//check address를 사용
+	struct vm_entry *vme = check_address(str, esp);
+	if(vme == NULL)
+		exit(-1);
+
+	int size=0;//string의 사이즈를 저장하는 변수
+	while(((char *)str)[size] != '\0')//string의 사이즈 측정
+		size++;
+	void *ptr=pg_round_down(str);
+	//인자로 받은 str도 str+ size까지의 크기가 한 페이지의 크기를 넘길 수 도 있음
+	for(;ptr<str+size; ptr+=PGSIZE)
+	{
+		//check_address를 이용해서 주소의 유저영역 여부를 검사함과 동시에 vm_entry 구조체를 얻음
+		vme = check_address(ptr, esp);
+		//해당 주소에 대한 vm_entry의 존재 여부와 검사
+		if(vme == NULL)
+			exit(-1);
+	}
+
+}
+
 
 void get_argument(void *esp, int *arg, int count)
 {
 	//유저 스택에 저장된 인저값들을 커널로 저장
 	//인자가 저장된 위치가 유저영역인지 확인
 	int i=0;
-	esp=esp+4;//첫 argument가 저장된 위
+	void *ptr=esp+4;//첫 argument가 저장된 위치
 	while(count--)
 	{
-		check_address(esp);
-		arg[i++]=*(int*)esp;
-		esp+=4;
+		check_address(ptr, esp);
+		arg[i++]=*(int*)ptr;
+		ptr+=4;
 	}
 }
 //terminate the pintos
@@ -201,6 +253,9 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 	//get stack pointer
 	esp=f->esp;
+
+	check_address(esp, f->esp);/*인자값 변경*/
+
 	//get syscall number
 	syscall_number=*(uint32_t*)esp;
 	//printf("\n");
@@ -217,17 +272,17 @@ syscall_handler (struct intr_frame *f UNUSED)
 			break;
 		case SYS_CREATE:
 			get_argument(esp, arg, 2);
-			check_address((void *)arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
+			check_valid_string((void *)arg[0], f->esp);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
 			f->eax = create((const char*)arg[0], (unsigned)arg[1]);
 			break;
 		case SYS_REMOVE:
 			get_argument(esp, arg, 1);
-			check_address((void *)arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
+			check_valid_string((void *)arg[0], f->esp);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
 			f->eax=remove((const char *)arg[0]);
 			break;
 		case SYS_EXEC:
 			get_argument(esp, arg, 1);
-			check_address((void *)arg[0]);
+			check_valid_string((void *)arg[0], f->esp);
 			f->eax=exec((const char *)arg[0]);
 			break;
 		case SYS_WAIT:
@@ -236,17 +291,20 @@ syscall_handler (struct intr_frame *f UNUSED)
 			break;
 		case SYS_READ:
 			get_argument(esp, arg, 3);
-			check_address((void *)arg[1]);
+			//기존의 check_address함수는 삭제
+			//check_address((void *)arg[1]);
+			//check_valid_buffer함수 구현
+			check_valid_buffer((void *)arg[1], (unsigned)arg[2], esp, true);
 			f->eax=read((int)arg[0], (void*)arg[1], (unsigned)arg[2]);
 			break;
 		case SYS_WRITE:
 			get_argument(esp, arg, 3);
-			check_address((void *)arg[1]);
+			check_valid_string((void *)arg[1], f->esp);
 			f->eax=write((int)arg[0], (void*)arg[1], (unsigned)arg[2]);
 			break;
 		case SYS_OPEN:
 			get_argument(esp, arg, 1);
-			check_address((void *)arg[0]);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
+			check_valid_string((void *)arg[0], f->esp);//stack으로 부터 얻어온 filename의 주소가 올바른 주소인지 check
 			f->eax=open((const char *)arg[0]);
 			break;
 		case SYS_FILESIZE:

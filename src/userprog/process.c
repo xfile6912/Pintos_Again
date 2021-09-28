@@ -453,7 +453,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 	done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
 	return success;
 }
 
@@ -661,4 +660,44 @@ void process_close_file(int fd)
 	file_close(t->fd_table[fd]);
 	//파일 디스크립터 테이블의 해당 entry를 초기화
 	t->fd_table[fd]=NULL;
+}
+
+bool handle_mm_fault(struct vm_entry *vme)
+{
+
+	//palloc_get_page()를 이용해서 물리 메모리 할당
+	uint8_t *kpage = palloc_get_page (PAL_USER);
+	if (kpage == NULL)
+		return false;
+
+	//switch문으로 vm_entry의 타입별 처리
+	switch(vme->type)
+	{
+		case VM_BIN:
+			//VM_BIN일 경우 load_file 함수를 이용해서 물리 메모리에 로드
+
+			if(!load_file(kpage, vme))
+			{
+				palloc_free_page(kpage);
+				return false;
+			}
+			break;
+		case VM_FILE:
+			break;
+		case VM_ANON:
+			break;
+	}
+
+	//install_page를 이용해서 물리페이지와 가상 페이지 맵핑
+	if (!install_page (vme->vaddr, kpage, vme->writable))
+	{
+		palloc_free_page (kpage);
+		return false;
+	}
+	//로드에 성공하였으면 vme->is_loaded를 true로 바꾸어줌
+	vme->is_loaded=true;
+
+	//로드 성공여부 반환
+	return true;
+
 }
