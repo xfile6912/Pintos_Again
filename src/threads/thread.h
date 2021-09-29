@@ -130,6 +130,9 @@ struct thread
     //(2*load_avg)/(2*load_avg+1)*recent_cpu + nice;
 
     struct hash vm; //thread가 가진 가상 주소 공간을 관리하는 hash table
+
+    struct list mmap_list;  //thread에 mapping된 mmap_file들의 list
+    int next_mapid; //다음으로 mapping될 mapid
   };
 
 /* If false (default), use round-robin scheduler.

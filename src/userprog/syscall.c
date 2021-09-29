@@ -243,6 +243,113 @@ void close(int fd)
 	//파일 디스크립터 테이블의 해당 entry를 초기화
 	cur->fd_table[fd]=NULL;
 }
+//요구 페이징에 의해 파일 데이터를 메모리로 로드, 성공 시 mapping id를 리턴, 실패시 에러코드(-1)리턴
+int mmap(int fd, void *addr)
+{
+	int mapid;
+	struct mmap_file *m_file;
+
+	//인자들을 체크하여 Valid하지 않을 시 에러 반환
+	if(process_get_file(fd)==NULL || !is_user_vaddr(addr) || pg_ofs(addr) !=0 || !addr )
+		return -1;
+
+	//file_reopen
+	struct file *reopened_file = file_reopen(process_get_file(fd));
+
+	//mapid 할당
+	mapid=thread_current()->next_mapid++;
+
+	//mmap_file 생성 및 초기화
+	m_file=malloc(sizeof(struct mmap_file));
+	if(m_file==NULL)
+		return -1;
+	m_file->mapid = mapid;
+	m_file->file = reopened_file;
+	list_push_back(&(thread_current()->mmap_list), &(m_file->elem));  //mmap_file들의 리스트 연결을 위한 구조체
+	list_init(&(m_file->vme_list));
+
+	//vm_entry 생성 및 초기화
+	uint32_t read_bytes = file_length(m_file->file);//읽어야할 바이트의 수
+	int ofs=0;
+	while (read_bytes > 0)
+	{
+		/* Calculate how to fill this page.
+		   We will read PAGE_READ_BYTES bytes from FILE
+		   and zero the final PAGE_ZERO_BYTES bytes. */
+		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+		size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+		//vm entry 생성(malloc 사용)
+		struct vm_entry *vme = malloc(sizeof(struct vm_entry));
+		//vm_entry 멤버들 설정, 가상페이지가 요구될 때 읽어야할 파일의 오프셋과 사이즈, 마지막에 패딩할 제로바이트 등등
+		vme->type = VM_FILE;
+		vme->vaddr = addr;
+		vme->writable = true;
+		vme->is_loaded = false;
+		vme->file = m_file->file;
+		vme->offset = ofs;
+		vme->read_bytes =page_read_bytes;
+		vme->zero_bytes =page_zero_bytes;
+		list_push_back(&(m_file->vme_list), &vme->mmap_elem);
+		//insert_vme()함수를 사용해서 생성한 vm_entry를 해시 테이블에 추가
+		insert_vme(&thread_current()->vm, vme);
+
+		/* Advance. */
+		read_bytes -= page_read_bytes;
+		//옵셋에 대한 정보도 담아야하므로 옵셋 정보 갱신 필요
+		ofs += page_read_bytes;
+		addr += PGSIZE;
+	}
+
+	//return map_id
+	return mapid;
+}
+//mmap_list내에서 mapping에 해당하는 mapid를 갖는 모든 vmentry를 해제
+void munmap(int mapid)
+{
+
+	struct thread * cur= thread_current();
+
+
+	if(mapid==0)//CLOSE_ALL인 경우
+	{
+		struct list_elem *e;
+		for (e = list_begin(&cur->mmap_list); e != list_end(&cur->mmap_list);) {
+			//다음 elem 백업
+			struct list_elem *next_e = list_next(e);
+
+			struct mmap_file *m_file = list_entry(e, struct mmap_file, elem);
+			do_munmap(m_file);
+
+			//다음 elem 복원
+			e = next_e;
+		}
+	}
+	else {
+		struct mmap_file *m_file=NULL;
+		//mmap_list 순회
+		struct list_elem *e;
+		for (e = list_begin(&cur->mmap_list); e != list_end(&cur->mmap_list); e = list_next(e)) {
+			struct mmap_file *check_mmap_file = list_entry(e, struct mmap_file, elem);
+			//mapid에 해당하는 mmap file을 찾은 경우
+			if (check_mmap_file->mapid == mapid) {
+				m_file = check_mmap_file;
+				break;
+			}
+		}
+		//mapid에 해당하는 mmap_file을 못찾은 경우
+		if (m_file == NULL)
+			return;
+
+		//vm_entry 제거
+		//페이지 테이블 entry 제거
+		//mmap_file 제거
+		//file_close
+		do_munmap(m_file);
+	}
+}
+
+
 
 	static void
 syscall_handler (struct intr_frame *f UNUSED) 
@@ -322,6 +429,14 @@ syscall_handler (struct intr_frame *f UNUSED)
 		case SYS_CLOSE:
 			get_argument(esp, arg, 1);
 			close((int)arg[0]);
+			break;
+		case SYS_MMAP:
+			get_argument(esp, arg, 2);
+			f->eax = mmap((int)arg[0], (void*)arg[1]);
+			break;
+		case SYS_MUNMAP:
+			get_argument(esp, arg, 1);
+			munmap((int)arg[0]);
 			break;
 	}
 }

@@ -576,6 +576,10 @@ init_thread (struct thread *t, const char *name, int priority)
   //Advanced Scheduler 관련 자료구조를 초기값으로 기화
   t->nice = NICE_DEFAULT;
   t->recent_cpu = RECENT_CPU_DEFAULT;
+
+  //mmap관련 자료구조를 초기값으로 초기화
+  list_init(&(t->mmap_list));
+  t->next_mapid=1;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

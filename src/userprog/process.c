@@ -208,6 +208,19 @@ process_exit (void)
 	//실행중인 파일 close
 	file_close(cur->run_file);
 
+	//mmap_list내에서 mapping에 해당하는 mapid를 갖는 모든 vm_entry를 해제하도록 코드 수정(CLOSE_ALL)
+	struct list_elem *e;
+	for (e = list_begin(&cur->mmap_list); e != list_end(&cur->mmap_list);) {
+		//다음 elem 백업
+		struct list_elem *next_e = list_next(e);
+
+		struct mmap_file *m_file = list_entry(e, struct mmap_file, elem);
+		do_munmap(m_file);
+
+		//다음 elem 복원
+		e = next_e;
+	}
+
 	//프로세스에 열린 모든 파일을 닫음
 	//파일 디스크립터 테이블의 최대값을 이용해 파일 디스크립터의 최소값인 2가 될때까지 파일을 닫음
 	//파일 디스크립터 테이블 메모리 해제(정적 배열로 선언해주었으므로 따로 메모리 해제 필요 없음)
@@ -683,6 +696,12 @@ bool handle_mm_fault(struct vm_entry *vme)
 			}
 			break;
 		case VM_FILE:
+			//vm_FILE시 데이터를 로드할 수 있도록 수정
+			if(!load_file(kpage, vme))
+			{
+				palloc_free_page(kpage);
+				return false;
+			}
 			break;
 		case VM_ANON:
 			break;
@@ -700,4 +719,36 @@ bool handle_mm_fault(struct vm_entry *vme)
 	//로드 성공여부 반환
 	return true;
 
+}
+//mmap_file의 vme_list에 연결된 모든 vm_entry들을 제거
+void do_munmap(struct mmap_file* mmap_file)
+{
+	//mmap_file의 vme_list에 연결된 모든 vm_entry들을 제거
+	struct list_elem *e;
+	struct file *file;
+	for(e=list_begin(&mmap_file->vme_list);e!=list_end(&mmap_file->vme_list); )
+	{
+
+		//다음 주소 백업해둠
+		struct list_elem *next_e=list_next(e);
+
+		struct vm_entry *vme=list_entry(e, struct vm_entry, mmap_elem);
+		file=vme->file;
+		//vm_entry가 가리키는 가상 주소에 대한 물리 페이지가 존재하고 dirty하면 디스크에 메모리 내용을 기록
+		if(pagedir_is_dirty(thread_current()->pagedir, vme->vaddr))
+			file_write_at(vme->file, vme->vaddr, vme->read_bytes, vme->offset);
+		//vme_list에서 vme 제거
+		list_remove(e);
+		//페이지 테이블 entry 제거
+		delete_vme(&thread_current()->vm, vme);
+		//다음 주소 복원
+		e=next_e;
+	}
+
+
+	//mmap_file 제거
+	list_remove(&mmap_file->elem);
+	free(mmap_file);
+	//file_close
+	//file_close(file);
 }

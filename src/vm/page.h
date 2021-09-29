@@ -29,6 +29,14 @@ struct vm_entry{
     struct hash_elem elem;    /*hash table element*/
 };
 
+struct mmap_file{
+    int mapid;  //mmap()성공시 리턴된 mapping id //mapid 0은 CLOSE_ALL 의미
+    struct file * file; //맵핑하는 파일의 파일 오브젝트
+    struct list_elem elem;  //mmap_file들의 리스트 연결을 위한 구조체
+    struct list vme_list;   //mmap_file에 해당하는 모든 vm_entry들의 리스트
+};
+
+
 void vm_init(struct hash *vm);
 bool insert_vme(struct hash *vm, struct vm_entry *vme);
 bool delete_vme(struct hash *vm, struct vm_entry *vme);
