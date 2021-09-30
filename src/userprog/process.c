@@ -749,6 +749,4 @@ void do_munmap(struct mmap_file* mmap_file)
 	//mmap_file 제거
 	list_remove(&mmap_file->elem);
 	free(mmap_file);
-	//file_close
-	//file_close(file);
 }

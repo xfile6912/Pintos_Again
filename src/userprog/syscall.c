@@ -253,6 +253,10 @@ int mmap(int fd, void *addr)
 	if(process_get_file(fd)==NULL || !is_user_vaddr(addr) || pg_ofs(addr) !=0 || !addr )
 		return -1;
 
+	//addr의 공간에 이미 다른 vm_entry가 있다면 이는 올릴 수 없음
+	if(find_vme(addr))
+		return -1;
+
 	//file_reopen
 	struct file *reopened_file = file_reopen(process_get_file(fd));
 
@@ -269,10 +273,11 @@ int mmap(int fd, void *addr)
 	list_init(&(m_file->vme_list));
 
 	//vm_entry 생성 및 초기화
-	uint32_t read_bytes = file_length(m_file->file);//읽어야할 바이트의 수
+	int read_bytes = file_length(m_file->file);//읽어야할 바이트의 수
 	int ofs=0;
 	while (read_bytes > 0)
 	{
+
 		/* Calculate how to fill this page.
 		   We will read PAGE_READ_BYTES bytes from FILE
 		   and zero the final PAGE_ZERO_BYTES bytes. */
