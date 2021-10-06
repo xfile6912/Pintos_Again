@@ -1,5 +1,11 @@
 #include "vm/page.h"
-
+#include "vm/frame.h"
+#include "vm/swap.h"
+#include "threads/malloc.h"
+#include "userprog/pagedir.h"
+#include "filesys/file.h"
+#include "threads/interrupt.h"
+#include <string.h>
 
 //vm_entry의 vaddr을 인자값으로 hash_int() 함수를 사용하여 해시값 반환
 static unsigned vm_hash_func(const struct hash_elem *e, void *aux)

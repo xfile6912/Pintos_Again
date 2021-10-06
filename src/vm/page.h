@@ -1,11 +1,14 @@
+#ifndef VM_PAGE_H
+#define VM_PAGE_H
+
 #include <hash.h>
+#include <list.h>
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
 #define VM_BIN 0    /*바이너리 파일로부터 데이터를 로드*/
 #define VM_FILE 1   /*매핑된 파일로부터 데이터를 로드*/
 #define VM_ANON 2   /*스왑 영역으로부터 데이터를 로드*/
-
 
 struct vm_entry{
     uint8_t type; /*VM_BIN, VM_FILE, VM_ANON의 타입*/
@@ -36,6 +39,12 @@ struct mmap_file{
     struct list vme_list;   //mmap_file에 해당하는 모든 vm_entry들의 리스트
 };
 
+struct page{
+    void *kaddr;    //페이지의 물리주소
+    struct vm_entry *vme;   //물리 페이지가 매핑된 가상의 주소 vm_entry 포인터
+    struct thread *thread;  //해당 물리 페이지를 사용중인 스레드의 포인터
+    struct list_elem lru;   //list연결을 위한 필드
+};
 
 void vm_init(struct hash *vm);
 bool insert_vme(struct hash *vm, struct vm_entry *vme);
@@ -45,3 +54,5 @@ struct vm_entry *find_vme(void *vaddr);
 void vm_destroy(struct hash *vm);
 
 bool load_file(void *kaddr, struct vm_entry *vme);
+
+#endif

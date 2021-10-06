@@ -140,16 +140,21 @@ int wait(tid_t tid)
 
 int open(const char *file)
 {
+	lock_acquire(&filesys_lock);
 	struct thread* cur=thread_current();
 	//파일을 open
 	struct file* fp=filesys_open(file);
 	//해당 파일이 존재하지 않으면 -1 리턴
-	if(fp==NULL)
+	if(fp==NULL) {
+		lock_release(&filesys_lock);
 		return -1;
+	}
 	//해당 파일 객체에 파일 디스크립터 부여
-	cur->fd_table[cur->new_fd]=fp;
+	int fd=cur->new_fd++;
+	cur->fd_table[fd]=fp;
 	//파일 디스크립터 리턴
-	return cur->new_fd++;
+	lock_release(&filesys_lock);
+	return fd;
 }
 int filesize(int fd)
 {
