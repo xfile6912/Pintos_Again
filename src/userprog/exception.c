@@ -5,6 +5,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include <hash.h>
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -152,9 +153,17 @@ page_fault (struct intr_frame *f) {
 
     //페이지 폴트가 일어난 주소에 대한 vm_entry구조체 탐색
     struct vm_entry *vme = find_vme(fault_addr);
+    if(vme==NULL)
+    {
+      if(!verify_stack(fault_addr, f->esp)) {
+        exit(-1);
+      }
+      expand_stack(fault_addr);
+      return;
+    }
     //vm_entry를 인자로 넘겨주며 handle_mm_fault()호출
     //제대로 파일이 물리 메모리에 로드되고 맵핑 되었는지 검사
-    if (vme == NULL || !handle_mm_fault(vme)) {
+    if (!handle_mm_fault(vme)) {
       exit(-1);
     }
 

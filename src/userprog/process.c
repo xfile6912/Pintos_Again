@@ -624,9 +624,9 @@ setup_stack (void **esp)
 
 		kpage->vme=vme;
 		//insert_vme()함수로 해시테이블에 추가
-		success = insert_vme(&(thread_current()->vm), vme);
+		insert_vme(&(thread_current()->vm), vme);
 	}
-	return success;
+	return true;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
@@ -674,6 +674,39 @@ void process_close_file(int fd)
 	file_close(t->fd_table[fd]);
 	//파일 디스크립터 테이블의 해당 entry를 초기화
 	t->fd_table[fd]=NULL;
+}
+//addr 주소를 포함하도록 스택을 확장
+bool expand_stack(void *addr)
+{
+	//alloc_page()를 통해 메모리 할당
+	struct page *kpage = alloc_page(PAL_USER | PAL_ZERO);
+	//vm_entry 의 할당 및 초기ㅗ하
+	struct vm_entry *vme = malloc(sizeof(struct vm_entry));
+	if(vme==NULL)
+		return false;
+
+	vme->type=VM_ANON;
+	vme->vaddr=pg_round_down(addr);
+	vme->writable=true;
+	vme->is_loaded=true;
+	insert_vme(&thread_current()->vm, vme);
+	kpage->vme=vme;
+	//install_page()호출하여 페이지 테이블 설정
+	if(!install_page(vme->vaddr, kpage->kaddr, vme->writable))
+	{
+		_free_page(kpage);
+		free(vme);
+		return false;
+	}
+
+	//성공시 true를 리턴
+	return true;
+}
+bool verify_stack(void*fault_addr, void *esp)
+{
+	void *maximum_limit = PHYS_BASE-8*1024*1024;
+	//esp 주소가 포함되어 있는지 확인하는 함수
+	return is_user_vaddr(pg_round_down(fault_addr)) && fault_addr>=esp - 32 && fault_addr >= maximum_limit;
 }
 
 bool handle_mm_fault(struct vm_entry *vme)
@@ -742,6 +775,7 @@ void do_munmap(struct mmap_file* mmap_file)
 			file_write_at(vme->file, vme->vaddr, vme->read_bytes, vme->offset);
 			lock_release(&filesys_lock);
 		}
+		vme->is_loaded = false;
 		//vme_list에서 vme 제거
 		list_remove(e);
 		//free page

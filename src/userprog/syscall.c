@@ -27,8 +27,15 @@ struct vm_entry * check_address(void *addr, void *esp)
 
 	//addr이 vm_entry에 존재하면 vm_entry를 반환하도록 코드 수정
 	//find_Vme()사용
-	return find_vme(addr);
-
+	struct vm_entry * vme= find_vme(addr);
+	if(vme==NULL)
+	{
+		if(!verify_stack(addr, esp))
+			exit(-1);
+		expand_stack(addr);
+		vme=find_vme(addr);
+	}
+	return vme;
 }
 
 //buffer의 유효성을 검사하는 함수

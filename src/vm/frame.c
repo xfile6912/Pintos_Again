@@ -54,13 +54,9 @@ void try_to_free_pages(enum palloc_flags flags)
     struct page *page;
     struct page *victim;
 
-    lock_acquire(&lru_list_lock);
 
     if(lru_clock==NULL)//lru_clock이 초기화가 안되어 있는 경우 초기화 시켜줌
        lru_clock=get_next_lru_clock();
-
-    if(lru_clock==NULL)
-        printf("1\n");
 
     //victim을 고르는 과정
     page = list_entry(lru_clock, struct page, lru);
@@ -103,13 +99,12 @@ void try_to_free_pages(enum palloc_flags flags)
 
     //페이지 해제
     _free_page(victim);
-    lock_release(&lru_list_lock);
-
 
 }
 
 struct page *alloc_page(enum palloc_flags flags)
 {
+    lock_acquire(&lru_list_lock);	//공유자원인 lru_list에 접근해야하므로
     //palloc_get_page()를 ㅌ오해 페이지 할당
     uint8_t *kpage = palloc_get_page(flags);
     while (kpage == NULL)
@@ -125,6 +120,7 @@ struct page *alloc_page(enum palloc_flags flags)
 
     //add_page_to_lru_list()를 통해 LRU 리스트에 page 구조체 삽입
     add_page_to_lru_list(page);
+    lock_release(&lru_list_lock);
     //page 구조체의 주소를 리턴
     return page;
 }
