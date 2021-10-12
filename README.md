@@ -173,7 +173,10 @@
           -  0인 경우 해당 페이지를 victim으로 설정
           -  1인 경우 Access Bit를 0으로 설정하고 다음 노드로 포인터를 옮겨 다시 검사
       - Dirty bit가 1인 페이지가 Victim으로 설정된 경우, 변경내용은 항상 디스크에 저장해야 함
-
+  - Stack
+    - 기존의 핀토스의 스택의 크기는 4KB로 고정
+    - 스택의 크기를 초과하는 주소에 접근이 발생한 경우, 유효한 스택 접근인지 Segmentation Fault인지를 판단하여 유효한 스택 접근인 경우 스택을 확장하도록 함
+    - 확장 가능한 스택의 최대 크기는 8MB가 되도록 함
 #### - 추가함수
   -  VM Entry, 가장 주소공간 초기화 및 유혀성 검사, 요구 페이징
       ``` 
@@ -236,6 +239,12 @@
       /* swap-out된 페이지를 다시 메모리로 적재 */
       void swap_in(size_t used_index, void *kaddr);
       ```
-
-#### - 결과
-  - <img width="400" alt="image" src="https://user-images.githubusercontent.com/57051773/136649114-4edcc542-340c-492a-bd1d-151f21287fe4.png">
+  - Stack
+      ```
+      /* addr 주소를 포함할 수 있도록 스택을 확장  */
+      bool expand_stack(void *addr);
+      /* 스택 확장을 할 수 있는지에 대한 여부를 반환 */
+      bool verify_stack(void *fault_addr, void *esp);
+      ```
+#### - 결과(4개 실패)
+  - <img width="400" alt="image" src="https://user-images.githubusercontent.com/57051773/136896681-c62ae203-3161-41c2-8101-8a477f0d94d3.png">
