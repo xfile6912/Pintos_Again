@@ -247,4 +247,4 @@
       bool verify_stack(void *fault_addr, void *esp);
       ```
 #### - 결과(4개 실패)
-  - <img width="600" alt="image" src="https://user-images.githubusercontent.com/57051773/136896681-c62ae203-3161-41c2-8101-8a477f0d94d3.png">
+  - <img width="600" alt="image" src="https://user-images.githubusercontent.com/57051773/136896873-b591f3d0-09fa-4d10-91cc-17b61b786004.png">
