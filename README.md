@@ -82,7 +82,7 @@
       - Priority: PRI_MAX - (recent_cpu / 4) - (nice * 2)
         - All Thread: 1초(100ticks)마다 Priority 재계산
         - Current Thread: 4 clock ticks마다 Priority 재계산
-      - Nice: -20 ~ 20
+      - Nice: -20 ~ 20(값이 작을수록 자신의 CPU 시간을 다른 프로세스에게 양보함)
       - Recent CPU: (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice
         - thread가 최근에 얼마나 많은 CPU time을 사용했는지를 표현
         - timer interrupt마다 1씩 증가, 매 1초마다 재계산
