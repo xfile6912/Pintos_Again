@@ -141,7 +141,7 @@
         ```   
 
 #### - 결과
-  - <img width="280" alt="image" src="https://user-images.githubusercontent.com/57051773/134620593-9fe89110-99ab-4733-8cf9-61b7aa372a39.png">
+  - <img width="400" alt="image" src="https://user-images.githubusercontent.com/57051773/134620593-9fe89110-99ab-4733-8cf9-61b7aa372a39.png">
   - 특이사항
     - thread_get_load_avg()와 thread_get_recent_cpu()의 반환값에 2를 곱해주었을 때 결과가 잘 나옴.
 
@@ -246,5 +246,16 @@
       /* 스택 확장을 할 수 있는지에 대한 여부를 반환 */
       bool verify_stack(void *fault_addr, void *esp);
       ```
-#### - 결과(4개 실패)
-  - <img width="600" alt="image" src="https://user-images.githubusercontent.com/57051773/136896873-b591f3d0-09fa-4d10-91cc-17b61b786004.png">
+#### - 결과
+  - <img width="600" alt="image" src="https://user-images.githubusercontent.com/57051773/143203331-92972d86-ac80-498f-8f4a-7641cc412992.png">
+#### - 체크사항
+  - page-merge-(seq, par, stk, mm) 테스트케이스에 관한 고찰
+    - logical address에 해당하는 vme가 삭제되면, 그에 대응되는 physical address에 해당하는 page도 같이 삭제해야 함
+      - 이로 인해 page-merge-seq, page-merge-par에서 굉장히 오랜 시간을 고생
+      - page fault가 이상하게 일어나는 경우 위의 경우에 해당할 수 있음
+    - read, write system call은 buffer의 size가 인자로 들어오기 때문에, 올바른 address인지 체크할 때, 해당 size만큼 모두 체크해주어야 함
+      - 이로 인해, page-merge-stk, page-merge-mm에서 굉장히 오래 시간을 고생
+    - I/O Interlock: Disk 안의 파일로부터 buffer로 데이터를 읽어올 때, 해당 buffer가 존재하는 page는 swap out되지 않도록 pinning 되어야 함
+      <img width="400" alt="image" src="https://user-images.githubusercontent.com/57051773/143205373-8719c6a2-70ba-4c7f-b26f-fc9e9a3f6cf9.png">
+      - 이로 인해, page-merge-stk에서 굉장히 오랜 시간을 고생
+      - 코드에서는, read system call 외에 write system call에도 I/O Interlock 처리를 해주었음.
