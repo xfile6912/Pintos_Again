@@ -144,9 +144,8 @@ start_process (void *file_name_)
 
 
 	success = load (real_file_name, &if_.eip, &if_.esp);
-
-	/* If load failed, quit. */
 	free_page (file_name);
+	/* If load failed, quit. */
 	if (!success) {
 		current_thread->is_loaded=false;
 		sema_up(&(current_thread->load));
@@ -605,16 +604,9 @@ setup_stack (void **esp)
 	bool success = false;
 
 	kpage = alloc_page (PAL_USER | PAL_ZERO);
-	if (kpage != NULL)
-	{
-		success = install_page (upage, kpage->kaddr, true);
-		if (success)
-			*esp = PHYS_BASE;
-		else
-			free_page (kpage);
-	}
-	if(success) {
+	if(install_page (upage, kpage->kaddr, true)) {
 		//vm_entry 생성
+		*esp = PHYS_BASE;
 		struct vm_entry *vme = malloc(sizeof(struct vm_entry));
 		//vm_entry 멤버들 설정
 		vme->type = VM_ANON;
@@ -625,6 +617,10 @@ setup_stack (void **esp)
 		kpage->vme=vme;
 		//insert_vme()함수로 해시테이블에 추가
 		insert_vme(&(thread_current()->vm), vme);
+	}
+	else {
+		free_page(kpage->kaddr);
+		return false;
 	}
 	return true;
 }
@@ -694,7 +690,7 @@ bool expand_stack(void *addr)
 	//install_page()호출하여 페이지 테이블 설정
 	if(!install_page(vme->vaddr, kpage->kaddr, vme->writable))
 	{
-		_free_page(kpage);
+		free_page(kpage->kaddr);
 		free(vme);
 		return false;
 	}
@@ -714,8 +710,6 @@ bool handle_mm_fault(struct vm_entry *vme)
 
 	//palloc_get_page()를 이용해서 물리 메모리 할당
 	struct page *kpage = alloc_page (PAL_USER);
-	if (kpage == NULL)
-		return false;
 	kpage->vme=vme;
 	//switch문으로 vm_entry의 타입별 처리
 	switch(vme->type)
@@ -724,7 +718,7 @@ bool handle_mm_fault(struct vm_entry *vme)
 			//VM_BIN일 경우 load_file 함수를 이용해서 물리 메모리에 로드
 			if(!load_file(kpage->kaddr, vme))
 			{
-				free_page(kpage);
+				free_page(kpage->kaddr);
 				return false;
 			}
 			break;
@@ -732,7 +726,7 @@ bool handle_mm_fault(struct vm_entry *vme)
 			//vm_FILE시 데이터를 로드할 수 있도록 수정
 			if(!load_file(kpage->kaddr, vme))
 			{
-				free_page(kpage);
+				free_page(kpage->kaddr);
 				return false;
 			}
 			break;
@@ -745,7 +739,7 @@ bool handle_mm_fault(struct vm_entry *vme)
 	//install_page를 이용해서 물리페이지와 가상 페이지 맵핑
 	if (!install_page (vme->vaddr, kpage->kaddr, vme->writable))
 	{
-		free_page (kpage);
+		free_page (kpage->kaddr);
 		return false;
 	}
 	//로드에 성공하였으면 vme->is_loaded를 true로 바꾸어줌
@@ -760,7 +754,6 @@ void do_munmap(struct mmap_file* mmap_file)
 {
 	//mmap_file의 vme_list에 연결된 모든 vm_entry들을 제거
 	struct list_elem *e;
-	struct file *file;
 	for(e=list_begin(&mmap_file->vme_list);e!=list_end(&mmap_file->vme_list); )
 	{
 
@@ -768,18 +761,15 @@ void do_munmap(struct mmap_file* mmap_file)
 		struct list_elem *next_e=list_next(e);
 
 		struct vm_entry *vme=list_entry(e, struct vm_entry, mmap_elem);
-		file=vme->file;
 		//vm_entry가 가리키는 가상 주소에 대한 물리 페이지가 존재하고 dirty하면 디스크에 메모리 내용을 기록
 		if(vme->is_loaded && pagedir_is_dirty(thread_current()->pagedir, vme->vaddr)) {
-			lock_acquire(&filesys_lock);
+			//lock_acquire(&filesys_lock);
 			file_write_at(vme->file, vme->vaddr, vme->read_bytes, vme->offset);
-			lock_release(&filesys_lock);
+			//lock_release(&filesys_lock);
 		}
 		vme->is_loaded = false;
 		//vme_list에서 vme 제거
 		list_remove(e);
-		//free page
-		free_page(pagedir_get_page(thread_current()->pagedir,vme->vaddr));
 
 		//페이지 테이블 entry 제거
 		delete_vme(&thread_current()->vm, vme);

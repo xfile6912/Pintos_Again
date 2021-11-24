@@ -3,23 +3,28 @@
 //clock알고리즘의 lru list를 이동하는 작업 수행
 static struct list_elem* get_next_lru_clock()
 {
-    struct list_elem *elem;
+    struct list_elem * next_elem;
     //lru list가 비어있는 경우
     if(list_empty(&lru_list))
         return NULL;
 
-    //lru list가 비어있지 않고 lru_clock이 NULL인 경우
-    if(lru_clock==NULL)
+    //lru list가 비어있지 않고 lru_clock이 NULL이거나 list의 끝인 경우, list의 begin을 반환
+    if(lru_clock==NULL || lru_clock==list_end(&lru_list))
         return list_begin(&lru_list);
 
-    //현재 lru리스트의 마지막 노드인 경우 NULL값을 반환
-    if(list_next(lru_clock)==list_end(&lru_list))
-        elem=NULL;
-    //LRU list의 다음 위치를 반환
-    else
-        elem=list_next(lru_clock);
+    //lru_clock이 NULL이 아닌 경우 중에
 
-    return elem;
+    //다음 elem이 없으면, 즉 list의 끝이라면
+    //list의 처음을 반환 -> 무조건 원래 lru_clock이 가리키는 페이지 하나는 있을 것이므로 list는 비어있을수 없음
+    if(list_next(lru_clock)==list_end(&lru_list)){
+        return list_begin(&lru_list);
+    }
+    //다음 elem이 있으면 다음 elem을 반환
+    else
+        return list_next(lru_clock);
+
+    //LRU list의 다음 위치를 반환
+    return lru_clock;
 }
 
 //lru와 관련된 자료구조 초기화
@@ -36,37 +41,34 @@ void lru_list_init(void)
 void add_page_to_lru_list(struct page* page)
 {
     list_push_back(&lru_list, &(page->lru));
-    if(lru_clock==NULL)//lru_clock이 null인 경우 lru_clock을 초기화 해줌
-        lru_clock=get_next_lru_clock();
 }
 //lru list에서 유저 page 제거
 void del_page_from_lru_list(struct page *page)
 {
-    if(lru_clock==&(page->lru))//lru clock이 가리키고 있는 page를 삭제하는 경우
-        lru_clock=get_next_lru_clock(); //lru clock을 다음 것으로 바꾸어 줌
-    list_remove(&(page->lru));
-    if(lru_clock==NULL)//만약 lru clock을 할당한 것이 null인 경우 list의 end인 경우일 수 있으므로 다시한번 get_next_lru_clock을 통해 체크해줌
-        lru_clock=get_next_lru_clock();
+    //삭제하고자 하는 page가 lru_clock이 가리키는 page라면
+    //lru_clock을 다음 원소로 바꾸어 주어야 함
+    if(&page->lru==lru_clock) {
+        lru_clock=list_next(lru_clock);
+    }
+    list_remove(&page->lru);
 }
 //물리페이지가 부족할 때 clock알고리즘을 이용하여 여유 메모리 확보
 void try_to_free_pages(enum palloc_flags flags)
 {
+
     struct page *page;
     struct page *victim;
 
 
-    if(lru_clock==NULL)//lru_clock이 초기화가 안되어 있는 경우 초기화 시켜줌
-       lru_clock=get_next_lru_clock();
+    lru_clock=get_next_lru_clock();
 
     //victim을 고르는 과정
     page = list_entry(lru_clock, struct page, lru);
 
-    while(pagedir_is_accessed(page->thread->pagedir, page->vme->vaddr))//최근에 access 된경우에는 victim이 될 수 없음
+    while(page->vme->pinned || pagedir_is_accessed(page->thread->pagedir, page->vme->vaddr))//최근에 access 된경우에는 victim이 될 수 없음
     {
         pagedir_set_accessed(page->thread->pagedir, page->vme->vaddr, false);//해당 page의 access 여부를 false로 바꾸어주고
         lru_clock=get_next_lru_clock(); //lru clock을 다음 것으로 바꾸어 줌
-        if(lru_clock==NULL)//만약 lru clock을 할당한 것이 null인 경우 list의 end인 경우일 수 있으므로 다시한번 get_next_lru_clock을 통해 체크해줌
-            lru_clock=get_next_lru_clock();
         page = list_entry(lru_clock, struct page, lru);
     }
     //victim이 설정됨
@@ -75,7 +77,7 @@ void try_to_free_pages(enum palloc_flags flags)
     {
         case VM_BIN:
             //dirty bit가 1이면
-            if(pagedir_is_dirty(victim->thread->pagedir, victim->vme, victim->vme->vaddr))
+            if(pagedir_is_dirty(victim->thread->pagedir, victim->vme->vaddr))
             {
                 //swap partition에 기록
                 victim->vme->swap_slot = swap_out(victim->kaddr);
@@ -85,7 +87,7 @@ void try_to_free_pages(enum palloc_flags flags)
             break;
         case VM_FILE:
             //dirty bit가 1이면
-            if(pagedir_is_dirty(victim->thread->pagedir, victim->vme, victim->vme->vaddr))
+            if(pagedir_is_dirty(victim->thread->pagedir, victim->vme->vaddr))
                 //파일에 변경 내용을 저장
                 file_write_at(victim->vme->file, victim->vme->vaddr, victim->vme->read_bytes, victim->vme->offset);
             break;
@@ -99,12 +101,11 @@ void try_to_free_pages(enum palloc_flags flags)
 
     //페이지 해제
     _free_page(victim);
-
 }
 
 struct page *alloc_page(enum palloc_flags flags)
 {
-    lock_acquire(&lru_list_lock);	//공유자원인 lru_list에 접근해야하므로
+    lock_acquire(&lru_list_lock);
     //palloc_get_page()를 ㅌ오해 페이지 할당
     uint8_t *kpage = palloc_get_page(flags);
     while (kpage == NULL)
@@ -121,6 +122,7 @@ struct page *alloc_page(enum palloc_flags flags)
     //add_page_to_lru_list()를 통해 LRU 리스트에 page 구조체 삽입
     add_page_to_lru_list(page);
     lock_release(&lru_list_lock);
+
     //page 구조체의 주소를 리턴
     return page;
 }

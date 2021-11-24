@@ -59,9 +59,9 @@ void check_valid_buffer(void *buffer, unsigned size, void *esp, bool to_write)
 
 }
 //system call에서 사용할 인자의 문자열의 주소값이 유효한 가상 주소인지 검사하는 함수
-void check_valid_string(const void *str, void *esp)
+void check_valid_string(void *str, void *esp)
 {
-	//str에 대한 vm_entry의 존재 여부를 확인
+	//str에 대한 vm_entry의 존재 여부를 확인`
 	//check address를 사용
 	struct vm_entry *vme = check_address(str, esp);
 	if(vme == NULL)
@@ -83,6 +83,40 @@ void check_valid_string(const void *str, void *esp)
 
 }
 
+// system call에서 사용할 인자의 문자열의 주소값이 유효한 가상 주소인지 검사하는 함수로 null문자를 이용하는 것이 아닌 사이즈를 이용
+void
+check_valid_string_length (void *str, unsigned size, void *esp)
+{
+	int i;
+	for(i=0; i<size; i++)
+	{
+		struct vm_entry *vme = check_address ((void *) (str++), esp);
+		if(vme == NULL)
+			exit(-1);
+	}
+}
+//buffer가 swap되지 않도록 pin해놓는 역할
+void pin_buffer (void *start, int size)
+{
+	void *ptr;
+	for (ptr=start; ptr < start+size; ptr += PGSIZE)
+	{
+		struct vm_entry *vme=find_vme(ptr);
+		vme->pinned = true;
+		if(!vme->is_loaded)
+			handle_mm_fault(vme);
+	}
+}
+//buffer를 pin해논 것을 다시 swap할 수 있도록 unpin하는 역할
+void unpin_buffer (void *start, int size)
+{
+	void *ptr;
+	for (ptr=start; ptr < start+size; ptr += PGSIZE)
+	{
+		struct vm_entry *vme=find_vme(ptr);
+		vme->pinned = false;
+	}
+}
 
 void get_argument(void *esp, int *arg, int count)
 {
@@ -177,11 +211,16 @@ int filesize(int fd)
 
 int read(int fd, void *buffer, unsigned size)
 {
-	struct thread * cur=thread_current();
-	int read_length=0;
 	//파일에 동시접근이 일어날 수 있으므로 lock 사용
 	lock_acquire(&filesys_lock);
+	//read하는 동안에는 swap되지 않도록 pin해둠둠
+	pin_buffer(buffer, size);
+	struct thread * cur=thread_current();
+	int read_length=0;
+
 	int i;
+
+
 	//파일 디스크립터가 0일 경우, 키보드에 입력을 버퍼에 저장 후
 	//버퍼에 저장한 크기를 리턴
 	if(fd==0)
@@ -202,6 +241,8 @@ int read(int fd, void *buffer, unsigned size)
 		if(fp!=NULL)
 			read_length=file_read(fp, buffer, size);
 	}
+	//read하는 동안에는 swap되지 않도록 pin해둠
+	unpin_buffer(buffer, size);
 	lock_release(&filesys_lock);
 	return read_length;
 
@@ -212,6 +253,8 @@ int write(int fd, const void *buffer, unsigned size)
 	int write_length=0;
 	//파일에 동시접근이 일어날 수 있으므로 lock 사용
 	lock_acquire(&filesys_lock);
+	//write하는 동안에는 swap되지 않도록 pin해둠
+	pin_buffer(buffer, size);
 	//파일 디스크립터가 1일 경우 버퍼에 저장된 값을 화면에 출력
 	if(fd==1)
 	{
@@ -227,6 +270,7 @@ int write(int fd, const void *buffer, unsigned size)
 		if(fp!=NULL)
 			write_length=file_write(fp, buffer, size);
 	}
+	unpin_buffer(buffer, size);
 	lock_release(&filesys_lock);
 	return write_length;
 }
@@ -327,22 +371,6 @@ void munmap(int mapid)
 
 	struct thread * cur= thread_current();
 
-
-	if(mapid==0)//CLOSE_ALL인 경우
-	{
-		struct list_elem *e;
-		for (e = list_begin(&cur->mmap_list); e != list_end(&cur->mmap_list);) {
-			//다음 elem 백업
-			struct list_elem *next_e = list_next(e);
-
-			struct mmap_file *m_file = list_entry(e, struct mmap_file, elem);
-			do_munmap(m_file);
-
-			//다음 elem 복원
-			e = next_e;
-		}
-	}
-	else {
 		struct mmap_file *m_file=NULL;
 		//mmap_list 순회
 		struct list_elem *e;
@@ -363,7 +391,6 @@ void munmap(int mapid)
 		//mmap_file 제거
 		//file_close
 		do_munmap(m_file);
-	}
 }
 
 
@@ -417,13 +444,13 @@ syscall_handler (struct intr_frame *f UNUSED)
 			get_argument(esp, arg, 3);
 			//기존의 check_address함수는 삭제
 			//check_address((void *)arg[1]);
-			//check_valid_buffer함수 구현
-			check_valid_buffer((void *)arg[1], (unsigned)arg[2], esp, true);
+			//read argument는 size가 정해져 있으므로 size에 따라 valid한지 체크
+			check_valid_string_length((void *) arg[1], (unsigned) arg[2], f->esp);
 			f->eax=read((int)arg[0], (void*)arg[1], (unsigned)arg[2]);
 			break;
 		case SYS_WRITE:
 			get_argument(esp, arg, 3);
-			check_valid_string((void *)arg[1], f->esp);
+			check_valid_string_length((void *) arg[1], (unsigned) arg[2], f->esp);
 			f->eax=write((int)arg[0], (void*)arg[1], (unsigned)arg[2]);
 			break;
 		case SYS_OPEN:

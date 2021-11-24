@@ -28,6 +28,7 @@ static bool vm_less_func(const struct hash_elem *a, const struct hash_elem *b, v
 static void vm_destroy_func(struct hash_elem *e, void *aux)
 {
 	struct vm_entry *vme=hash_entry(e, struct vm_entry, elem);
+	free_page(pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
 	free(vme);
 }
 
@@ -40,6 +41,7 @@ void vm_init(struct hash *vm)
 //hash_insert()함수를 사용하여 vm_Entry를 해시테이블에 삽입
 bool insert_vme(struct hash *vm, struct vm_entry *vme)
 {
+	vme->pinned=false;
 	struct hash_elem* elem = hash_insert (vm, &(vme->elem));
 	//hash_insert는 삽입 성공시에 null을 반환함
 	if(elem ==NULL)
@@ -58,6 +60,7 @@ bool delete_vme(struct hash *vm, struct vm_entry *vme)
 		return false;
 	else//삭제에 성공한 경우
 	{
+		free_page(pagedir_get_page (thread_current ()->pagedir, vme->vaddr));
 		free(vme);//vme를 free해줌
 		return true;
 	}

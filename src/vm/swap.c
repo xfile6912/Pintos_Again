@@ -9,17 +9,12 @@ const size_t BLOCK_PER_PAGE=PGSIZE/BLOCK_SECTOR_SIZE;//한 페이지당 블럭�
 //swap 영역 초기화
 void swap_init()
 {
-    swap_disk=block_get_role(BLOCK_SWAP);
-    if(swap_disk==NULL)
-        printf("1\n");
-    if(swap_disk)
-    {
-        swap_bitmap = bitmap_create(block_size(swap_disk)/BLOCK_PER_PAGE);
-    }
+    swap_bitmap = bitmap_create(8*1024);
 }
 //used_index의 swap slot에 저장된 데이터를 논리주소 kaddr로 복사
 void swap_in(size_t used_index, void *kaddr)
 {
+    struct block *swap_disk=block_get_role(BLOCK_SWAP);
     if(bitmap_test(swap_bitmap, used_index))//used_index에 해당되는 swap영역이 사용되고 있다면
     {
         int i;
@@ -35,6 +30,7 @@ void swap_in(size_t used_index, void *kaddr)
 //kaddr 주소가 가리키는 페이지를 스왑 파티션에 기록
 size_t swap_out(void *kaddr)
 {
+    struct block *swap_disk=block_get_role(BLOCK_SWAP);
     //first fit에 따라 가장 처음으로 false를 나타내는 index를 가져옴.
     size_t swap_index = bitmap_scan(swap_bitmap, 0, 1, false);
     if(BITMAP_ERROR != swap_index)

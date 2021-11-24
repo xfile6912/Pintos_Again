@@ -14,6 +14,7 @@ struct vm_entry{
     uint8_t type; /*VM_BIN, VM_FILE, VM_ANON의 타입*/
     void *vaddr;  /*vm_entry가 관리하는 가상 페이지 번호*/
     bool writable;    /*True일 경우 해당 주소에 write 가능*/
+    bool pinned;
     /*False일 경우 해당 주소에 write 불가능 */
     bool is_loaded;   /*물리메모리의 탑재 여부를 알려주는 플래그*/
     struct file* file;    /*가상 주소와 mapping된 파일*/
