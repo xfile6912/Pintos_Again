@@ -82,14 +82,14 @@
       - Priority: PRI_MAX - (recent_cpu / 4) - (nice * 2)
         - All Thread: 1초(100ticks)마다 Priority 재계산
         - Current Thread: 4 clock ticks마다 Priority 재계산
-      - Nice: -20 ~ 20(값이 작을수록 자신의 CPU 시간을 다른 프로세스에게 양보함)
+      - Nice: -20 ~ 20(값이 클수록 자신의 CPU 시간을 다른 프로세스에게 양보함)
       - Recent CPU: (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice
         - thread가 최근에 얼마나 많은 CPU time을 사용했는지를 표현
         - timer interrupt마다 1씩 증가, 매 1초마다 재계산
       - Load Average: (59 / 60) * load_avg + (1 / 60) * ready_threads
         - 최근 1분 동안 수행 가능한 프로세스의 평균 개수
         - ready_threads: ready_list에 있는 thread들과 실행중인 thread의 개수
-      - [참고사이트] https://poalim.tistory.com/25
+      - [참고사이트] https://web.stanford.edu/class/cs140/projects/pintos/pintos_7.html
 
 #### - 추가함수
   -  Alarm System Call
