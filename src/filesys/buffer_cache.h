@@ -18,7 +18,7 @@ struct buffer_head{
 
 void bc_init(void);
 bool bc_read(block_sector_t sector_idx, void *buffer, off_t bytes_read, int chunk_size, int sector_ofs);
-bool bc_write(block_sector_t sector_idx, void *buffer, off_t bytes_written, int chunck_size, int sector_ofs);
+bool bc_write(block_sector_t sector_idx, void *buffer, off_t bytes_written, int chunk_size, int sector_ofs);
 void bc_term(void);
 struct buffer_head* bc_select_victim(void);
 struct buffer_head* bc_lookup(block_sector_t sector);
